@@ -59,16 +59,16 @@ class MonoFilteredNoiseState
 public:
     MonoFilteredNoiseState();
     void generate(float* outBuffer, unsigned int length);
+    void initialize();
+    void cleanup();
 private:
-    Iir::Butterworth::LowPass<8> filter;
-    const float samplingrate = 48000; // Hz
-    const float cutoff_frequency = 23999; // Hz
+    Iir::Butterworth::LowPass<8>* filter;
     float generatedValue = 0;
+    float filteredValue = 0;
 };
 
 MonoFilteredNoiseState::MonoFilteredNoiseState()
 {
-    filter.setup(samplingrate, cutoff_frequency);
 }
 
 void MonoFilteredNoiseState::generate(float* outBuffer, unsigned int length)
@@ -76,8 +76,20 @@ void MonoFilteredNoiseState::generate(float* outBuffer, unsigned int length)
     while (length--) 
     {
         generatedValue = (((float)(rand() % 32768) / 16384.0f) - 1.0f);
-        *outBuffer++ = generatedValue; // <- works, nice white noise || filter.filter(generatedValue); <- filtered doesn't work, no sound
+        filteredValue = filter->filter(generatedValue);
+        *outBuffer++ = filteredValue; 
     }
+}
+
+void MonoFilteredNoiseState::initialize()
+{
+    filter = new Iir::Butterworth::LowPass<8>();
+    filter->setup(48000, 500);
+}
+
+void MonoFilteredNoiseState::cleanup()
+{
+    delete filter;
 }
 
 FMOD_RESULT F_CALLBACK MFN_dspCreate(FMOD_DSP_STATE* dsp) 
@@ -88,12 +100,16 @@ FMOD_RESULT F_CALLBACK MFN_dspCreate(FMOD_DSP_STATE* dsp)
         return FMOD_ERR_MEMORY;
     }
 
+    MonoFilteredNoiseState* state = (MonoFilteredNoiseState*)dsp->plugindata;
+    state->initialize();
+
     return FMOD_OK;
 }
 
 FMOD_RESULT F_CALLBACK MFN_dspRelease(FMOD_DSP_STATE* dsp)
 {
     MonoFilteredNoiseState* state = (MonoFilteredNoiseState*)dsp->plugindata;
+    state->cleanup();
     FMOD_DSP_FREE(dsp, state);
     return FMOD_OK;
 }
