@@ -59,10 +59,10 @@ class MonoFilteredNoiseState
 public:
     MonoFilteredNoiseState();
     void generate(float* outBuffer, unsigned int length);
-    void initialize();
+    void initialize(float samplerate);
     void cleanup();
 private:
-    Iir::Butterworth::LowPass<8>* filter;
+    Iir::Butterworth::BandPass<8>* filter;
     float generatedValue = 0;
     float filteredValue = 0;
 };
@@ -81,10 +81,10 @@ void MonoFilteredNoiseState::generate(float* outBuffer, unsigned int length)
     }
 }
 
-void MonoFilteredNoiseState::initialize()
+void MonoFilteredNoiseState::initialize(float samplerate)
 {
-    filter = new Iir::Butterworth::LowPass<8>();
-    filter->setup(48000, 500);
+    filter = new Iir::Butterworth::BandPass<8>();
+    filter->setup(samplerate, 500, 250);
 }
 
 void MonoFilteredNoiseState::cleanup()
@@ -101,7 +101,9 @@ FMOD_RESULT F_CALLBACK MFN_dspCreate(FMOD_DSP_STATE* dsp)
     }
 
     MonoFilteredNoiseState* state = (MonoFilteredNoiseState*)dsp->plugindata;
-    state->initialize();
+    int rate;
+    dsp->functions->getsamplerate(dsp, &rate);
+    state->initialize(rate);
 
     return FMOD_OK;
 }
