@@ -19,11 +19,11 @@ enum
 
 const float FREQUENCY_MIN = 0;
 const float FREQUENCY_MAX = 23999;
-const float FREQUENCY_DEFAULT = 0;
+const float FREQUENCY_DEFAULT = 400;
 
 const float WIDTH_MIN = 1;
 const float WIDTH_MAX = 2000;
-const float WIDTH_DEFAULT = 200;
+const float WIDTH_DEFAULT = 50;
 
 const int RAMP_LENGTH = 256;
 
@@ -95,7 +95,8 @@ public:
     void reset();
     void cleanup();
 private:
-    Iir::Butterworth::BandPass<8>* filter;
+    // TODO: try Iir::RBJ with Q factor to see if resonance works
+    Iir::ChebyshevII::BandPass<8>* filters[20];
     float generatedValue = 0;
     float filteredValue = 0;
     float samplerate = 0;
@@ -105,6 +106,7 @@ private:
     float targetWidth = 0;
     int samplesLeftRampFrequency = 0;
     int samplesLeftRampWidth = 0;
+    int filterCount = 0;
 };
 
 MonoFilteredNoiseState::MonoFilteredNoiseState()
@@ -123,8 +125,11 @@ void MonoFilteredNoiseState::generate(float* outBuffer, unsigned int length)
             {
                 currentFrequency = targetFrequency;
                 currentWidth = targetWidth;
-                filter->setup(samplerate, currentFrequency, currentWidth);
-                filter->reset();
+                for (int i = 0; i < filterCount; i++)
+                {
+                    filters[i]->setup(samplerate, currentFrequency + currentFrequency * ((float)(i * 0.3f)), currentWidth, 60);
+                    filters[i]->reset();
+                }
                 break;
             }
             if (--samplesLeftRampFrequency > 0) {
@@ -135,33 +140,53 @@ void MonoFilteredNoiseState::generate(float* outBuffer, unsigned int length)
                 currentWidth += widthDelta;
             }
 
-            filter->setup(samplerate, currentFrequency, currentWidth);
-            filter->reset();
+            for (int i = 0; i < filterCount; i++)
+            {
+                filters[i]->setup(samplerate, currentFrequency + currentFrequency * ((float)(i * 0.3f)), currentWidth, 60);
+                filters[i]->reset();
+            }
 
             generatedValue = (((float)(rand() % 32768) / 16384.0f) - 1.0f);
-            filteredValue = filter->filter(generatedValue);
-            *outBuffer++ = filteredValue;
+            filteredValue = 0;
+
+
+            for (int i = 0; i < filterCount; i++)
+            {
+                filteredValue += filters[i]->filter(generatedValue);
+            }
+
+            *outBuffer++ = filteredValue / filterCount;
         }
     }
 
     while (length--) 
     {
         generatedValue = (((float)(rand() % 32768) / 16384.0f) - 1.0f);
-        filteredValue = filter->filter(generatedValue);
-        *outBuffer++ = filteredValue; 
+        filteredValue = 0;
+
+        for (int i = 0; i < filterCount; i++)
+        {
+            filteredValue += filters[i]->filter(generatedValue);
+        }
+
+        *outBuffer++ = filteredValue / filterCount;
     }
 }
 
 void MonoFilteredNoiseState::initialize(float samplerate)
 {
     this->samplerate = samplerate;
-    filter = new Iir::Butterworth::BandPass<8>();
     currentFrequency, targetFrequency = FREQUENCY_DEFAULT;
     currentWidth, targetWidth = WIDTH_DEFAULT;
     samplesLeftRampFrequency = 0;
     samplesLeftRampWidth = 0;
+    filterCount = 3;
 
-    filter->setup(samplerate, FREQUENCY_DEFAULT, WIDTH_DEFAULT);
+    for (int i = 0; i < filterCount; i++)
+    {
+        filters[i] = new Iir::ChebyshevII::BandPass<8>();
+        filters[i]->setup(samplerate, currentFrequency + currentFrequency * ((float)(i * 0.3f)), currentWidth, 60);
+    }
 }
 
 void MonoFilteredNoiseState::setTargetFrequency(float value)
@@ -178,12 +203,18 @@ void MonoFilteredNoiseState::setTargetWidth(float value)
 
 void MonoFilteredNoiseState::reset()
 {
-    filter->reset();
+    for (int i = 0; i < filterCount; i++)
+    {
+        filters[i]->reset();
+    }
 }
 
 void MonoFilteredNoiseState::cleanup()
 {
-    delete filter;
+    for (int i = 0; i < filterCount; i++)
+    {
+        delete filters[i];
+    }
 }
 
 FMOD_RESULT F_CALLBACK MFN_dspCreate(FMOD_DSP_STATE* dsp) 
