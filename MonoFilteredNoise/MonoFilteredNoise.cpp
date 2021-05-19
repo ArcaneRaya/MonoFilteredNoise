@@ -95,7 +95,7 @@ public:
     void reset();
     void cleanup();
 private:
-    // TODO: try Iir::RBJ with Q factor to see if resonance works
+    // TODO: make filters a non-static amount
     Iir::ChebyshevII::BandPass<8>* filters[20];
     float generatedValue = 0;
     float filteredValue = 0;
@@ -148,7 +148,6 @@ void MonoFilteredNoiseState::generate(float* outBuffer, unsigned int length)
 
             generatedValue = (((float)(rand() % 32768) / 16384.0f) - 1.0f);
             filteredValue = 0;
-
 
             for (int i = 0; i < filterCount; i++)
             {

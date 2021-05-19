@@ -87,7 +87,7 @@ EnvelopePoint::EnvelopePoint(int length, float target)
     targetValue = target;
 }
 
-const int MAX_ENVELOPEPOINT_COUNT = 2;
+const int MAX_ENVELOPEPOINT_COUNT = 10;
 
 class ModeData 
 {
