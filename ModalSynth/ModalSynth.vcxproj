@@ -129,7 +129,7 @@
     <PostBuildEvent>
       <Command>if not exist ..\bin mkdir ..\bin
 copy /Y "$(TargetPath)" ..\bin
-   </Command>
+copy /Y "C:\Users\nvank\Documents\002_HKU\Afstuderen\ModalSynthesis\FMODPluginCreation\MonoFilteredNoise\ModalSynth\ModalSynth.plugin.js" ..\bin   </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -182,6 +182,9 @@ copy /Y "$(TargetPath)" ..\bin
     <ClInclude Include="iir\State.h" />
     <ClInclude Include="iir\Types.h" />
     <ClInclude Include="ModalSynthState.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ModalSynth.plugin.js" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

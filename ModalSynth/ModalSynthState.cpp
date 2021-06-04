@@ -44,7 +44,10 @@ void ModalSynthState::initialize(float samplerate)
     this->samplerate = samplerate;
 
     ClearEnevelopedFilters();
-    CreateEnvelopedFilters();
+    if (data != nullptr && dataLength != 0) {
+        CreateModesFromData();
+    }
+//    CreateEnvelopedFilters();
 
     float someValue = 0;
 }
@@ -60,6 +63,163 @@ void ModalSynthState::reset()
 void ModalSynthState::release()
 {
     ClearEnevelopedFilters();
+    ClearData();
+}
+
+void ModalSynthState::setData(void* data, unsigned int length)
+{
+    this->data = data;
+    dataLength = length;
+
+    ClearEnevelopedFilters();
+    CreateModesFromData();
+}
+
+void ModalSynthState::getData(void** data, unsigned int* length)
+{
+    *data = data;
+    *length = dataLength;
+}
+
+void ModalSynthState::ClearData()
+{
+    data = nullptr;
+    dataLength = 0;
+}
+
+void ModalSynthState::CreateModesFromData()
+{
+    int numberOfModes = ParseDataForNumberOfModes();
+    envelopedFiltersCount = numberOfModes;
+    envelopedFilters = new EnvelopedFilter[numberOfModes];
+
+    char* startPoint = (char*)data;
+    int position = 1;
+    int currentModeIndex = 0;
+
+    while (position < dataLength && currentModeIndex < envelopedFiltersCount) {
+        EnvelopedFilter* currenEnvelopedFilter = envelopedFilters + currentModeIndex;
+        InitializeModeFromData(startPoint, &position, currenEnvelopedFilter);
+        position++;
+        currentModeIndex++;
+    }
+}
+
+int ModalSynthState::ParseDataForNumberOfModes()
+{
+    char* currentCharacter = (char*)data;
+    int dataLengthLeft = dataLength;
+    int numberOfModes = 0;
+
+    while (dataLengthLeft > 0) {
+        if (*currentCharacter == '#') {
+            numberOfModes++;
+        }
+
+        currentCharacter++;
+        dataLengthLeft--;
+    }
+
+    return numberOfModes;
+}
+
+void ModalSynthState::InitializeModeFromData(char* fileStart, int* position, EnvelopedFilter* mode)
+{
+    mode->SetSamplerate(samplerate);
+
+    int frequency = ParseDataForFrequency(fileStart, position);
+    float randomValue = (((float)(rand() % 32768) / 16384.0f) - 1.0f);
+    frequency += (frequency / 15) * randomValue;
+
+    mode->SetFrequency(frequency);
+
+    bool envelopeEndReached = false;
+    while (envelopeEndReached == false) {
+        (*position)++;
+        ParseForNextEnvelopePoint(fileStart, position, mode);
+        char currentChar = *(fileStart + *position);
+        envelopeEndReached = currentChar == '#' || *position >= dataLength;
+    }
+
+    mode->Reset();
+
+}
+
+int ModalSynthState::ParseDataForFrequency(char* fileStart, int* position)
+{
+    char numberAsCharArray[7];
+    numberAsCharArray[0] = 0;
+
+    int numberAsCharArrayPosition = 0;
+    while (*position < dataLength) {
+        numberAsCharArray[numberAsCharArrayPosition] = *(fileStart + *position);
+        
+        numberAsCharArrayPosition++;
+        (*position)++;
+
+        if (*(fileStart + *position) == ';') {
+            break;
+        }
+    }
+    numberAsCharArray[numberAsCharArrayPosition] = 0;
+
+    return std::atoi(numberAsCharArray);
+}
+
+void ModalSynthState::ParseForNextEnvelopePoint(char* fileStart, int* position, EnvelopedFilter* mode)
+{
+    int intPosition = *position;
+    int lengthInMilliseconds = ParseForLength(fileStart, position);
+    char currentChar = *(fileStart + *position);
+    intPosition = *position;
+    (*position)++;
+    float targetValue = ParseForTargetValue(fileStart, position);
+
+    intPosition = *position;
+
+    mode->AddEnvelopePoint(CreateEnvelopePointWithTargetValueAndLengthInMilliseconds(targetValue, lengthInMilliseconds));
+}
+
+int ModalSynthState::ParseForLength(char* fileStart, int* position)
+{
+    char numberAsCharArray[7];
+    numberAsCharArray[0] = 0;
+
+    int numberAsCharArrayPosition = 0;
+    while (*position < dataLength) {
+        numberAsCharArray[numberAsCharArrayPosition] = *(fileStart + *position);
+
+        numberAsCharArrayPosition++;
+        (*position)++;
+
+        if (*(fileStart + *position) == '-') {
+            break;
+        }
+    }
+    numberAsCharArray[numberAsCharArrayPosition] = 0;
+
+    return std::atoi(numberAsCharArray);
+}
+
+float ModalSynthState::ParseForTargetValue(char* fileStart, int* position)
+{
+    char numberAsCharArray[7];
+    numberAsCharArray[0] = 0;
+
+    int numberAsCharArrayPosition = 0;
+    while (*position < dataLength) {
+        numberAsCharArray[numberAsCharArrayPosition] = *(fileStart + *position);
+
+        numberAsCharArrayPosition++;
+        (*position)++;
+
+        if (*(fileStart + *position) == ';' || *(fileStart + *position) == '#') {
+            break;
+        }
+    }
+    numberAsCharArray[numberAsCharArrayPosition] = 0;
+
+    return std::atof(numberAsCharArray);
 }
 
 void ModalSynthState::ClearEnevelopedFilters()
